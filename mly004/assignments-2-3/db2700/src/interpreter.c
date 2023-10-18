@@ -596,19 +596,28 @@ static void select_rows() {
                              slct->where_val);
   CALLGRIND_TOGGLE_COLLECT;
   CALLGRIND_STOP_INSTRUMENTATION;
+  put_pager_profiler_info(1);
+  pager_profiler_reset();
+
     if (!where_tbl) {
       release_select_desc(slct);
       return;
     }
   }
 
-  if (slct->attrs[0][0] == '*')
+  if (slct->attrs[0][0] == '*'){
+    printf("does it fail to display\n");
     table_display(where_tbl ? where_tbl
                   : (join_tbl ? join_tbl : slct->from_tbl));
+    printf("not failing\n");
+  }
   else {
+    printf("not failling either\n");
     res_tbl = table_project(where_tbl ? where_tbl : slct->from_tbl,
                             slct->num_attrs, slct->attrs);
+    printf("not failing 3\n");
     table_display(res_tbl);
+    printf("yes it does\n");
   }
 
   remove_table(join_tbl);
