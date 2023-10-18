@@ -594,7 +594,7 @@ int get_record(record r, schema_p s) {
   page_p pg = get_page_for_next_record(s);
   return pg ? get_page_record(pg, r, s) : 0;
 }
-/*
+
 //mly004: Calculating what page to return by 
 //using global variables and the record number 
 //the function takes in to get the page number 
@@ -603,8 +603,10 @@ int get_record(record r, schema_p s) {
 //set the position with the calculated offset
 //and then return the current page 
 page_p return_page(tbl_p tbl, int rec_nr){
-  int rec_per_blck = (BLOCK_SIZE - PAGE_HEADER_SIZE) / tbl->sch->len;
-  int rec_offset = PAGE_HEADER_SIZE + (rec_nr % rec_per_blck) * tbl->sch->len;
+  int product_of_size = (BLOCK_SIZE - PAGE_HEADER_SIZE);
+  int rec_per_blck = product_of_size / tbl->sch->len;
+  int product_of_modulo = (rec_nr % rec_per_blck);
+  int rec_offset = PAGE_HEADER_SIZE + product_of_modulo * tbl->sch->len;
   int pg_nr = rec_nr / rec_per_blck;
   tbl->curr_pg = get_page(tbl->sch->name, pg_nr);
   page_set_current_pos(tbl->curr_pg, rec_offset);
@@ -612,27 +614,72 @@ page_p return_page(tbl_p tbl, int rec_nr){
 }
 //mly004: find the record in the page(this is where binary search happens)
 //by looping through the page using the beginning and end values taken in
-int get_record_in_page(record r, schema_p s, int offset, int val, int beg, int end) {
+record get_record_in_page(record r, schema_p s, int offset, int val, int beg, int end) {
+  record rec;
   while (beg <= end) {
     int mid = (beg + end) / 2;
     page_p pg = return_page(s->tbl, mid);
     int pos = page_current_pos(pg);
     int rec_val = page_get_int_at(pg, pos + offset);
+    
 
     if (val == rec_val) {
       page_set_current_pos(pg, pos);
       get_page_record(pg, r, s);
-      return 1;
+      printf("Record %p found\n", r);
+      rec = r;
+      break;
     }
     else if (val < rec_val) {
       end = mid - 1;
+      printf("searching lesser half");
+    }
+    else if (val > rec_val && val >= s->tbl->num_records -1) {
+      beg = mid + 1;
+      printf("searching larger half");
     }
     else {
-      beg = mid + 1;
+      printf("Record not found\n");
+      return 0;
     }
   }
+  printf("exiting\n");
+  return rec;
+}
+
+int get_record_int_in_page(record r, schema_p s, int offset, int val) {
+  int beg = 0;
+  int end = s->tbl->num_records - 1;
+  while (beg <= end) {
+    int mid = (beg + end) / 2;
+    page_p pg = return_page(s->tbl, mid);
+    int pos = page_current_pos(pg);
+    int rec_val = page_get_int_at(pg, pos + offset);
+    
+
+    if (val == rec_val) {
+      page_set_current_pos(pg, pos);
+      get_page_record(pg, r, s);
+      printf("Record found\n");
+      return rec_val;
+      break;
+    }
+    else if (val < rec_val) {
+      end = mid - 1;
+      printf("searching lesser half");
+    }
+    else if (val > rec_val && val >= s->tbl->num_records -1) {
+      beg = mid + 1;
+      printf("searching larger half");
+    }
+    else {
+      printf("Record not found\n");
+      return 0;
+    }
+  }
+  printf("exiting\n");
   return 0;
-}*/
+}
 
 static int int_equal(int x, int y) {
   return x == y;
@@ -782,7 +829,6 @@ void table_display(tbl_p t) {
 }
 
 /* We restrict ourselves to equality search on an int attribute */
-/*
 tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
   if (!t) return 0;
 
@@ -839,8 +885,7 @@ tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
   release_record(rec, s);
 
   return res_sch->tbl;
-} 
-*/
+}
 
 //mly004: Do a binary search on the table
 tbl_p binary_search(tbl_p t, char const* attr, char const* op, int val) {
@@ -882,17 +927,25 @@ tbl_p binary_search(tbl_p t, char const* attr, char const* op, int val) {
     put_msg(ERROR, "failed to allocate memory for rec.\n");
     return 0;
   }
-  /*
+  
   //finds the record with the value and appends it to the result schema
-  while (get_record_in_page(r, s, offset, val, 0, s->tbl->num_records - 1)) {
-    put_record_info(DEBUG, rec, s);
+  if (get_record_int_in_page(rec, s, f->offset, val)) {
+    put_record_info(ERROR, rec, s);
+    printf("getting record\n");
+    rec = get_record_in_page(rec, s, f->offset, val, 0, s->tbl->num_records - 1);
+    printf("%p", rec);
+    printf("appending record\n");
     append_record(rec, res_sch);
+    put_record_info(ERROR, rec, s);
+    printf("appended record\n");
   }
-
-  release_record(rec, s);
+  printf("releasing record\n");
+  //release_record(rec, s);
+  table_display(res_sch->tbl);
+  printf("released record\n");
   return res_sch->tbl;
-  */
-
+}
+  /*
   //mly004: Creating an array from table data
   size_t num_records = t->num_records;
   int* arr = (int*)malloc(num_records * sizeof(int));
@@ -933,7 +986,7 @@ tbl_p binary_search(tbl_p t, char const* attr, char const* op, int val) {
   //release_record(rec, s);
   //free(arr);
   return res_sch->tbl; //causes segfault at line 748 in function display_tbl_header
-  }
+  }*/
 
 tbl_p table_project(tbl_p t, int num_fields, char* fields[]) {
   schema_p s = t->sch;
