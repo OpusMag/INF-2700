@@ -614,37 +614,29 @@ page_p return_page(tbl_p tbl, int rec_nr){
 }
 //mly004: find the record in the page(this is where binary search happens)
 //by looping through the page using the beginning and end values taken in
-record get_record_in_page(record r, schema_p s, int offset, int val, int beg, int end) {
-  record rec;
+record get_record_in_page(record r, schema_p s, int offset, int val) {
+  int beg = 0;
+  int end = s->tbl->num_records - 1;
   while (beg <= end) {
     int mid = (beg + end) / 2;
     page_p pg = return_page(s->tbl, mid);
     int pos = page_current_pos(pg);
     int rec_val = page_get_int_at(pg, pos + offset);
-    
 
     if (val == rec_val) {
       page_set_current_pos(pg, pos);
       get_page_record(pg, r, s);
-      printf("Record %p found\n", r);
-      rec = r;
-      break;
+      return r;
     }
     else if (val < rec_val) {
       end = mid - 1;
-      printf("searching lesser half");
-    }
-    else if (val > rec_val && val >= s->tbl->num_records -1) {
-      beg = mid + 1;
-      printf("searching larger half");
     }
     else {
-      printf("Record not found\n");
-      return 0;
+      beg = mid + 1;
     }
   }
-  printf("exiting\n");
-  return rec;
+  printf("Record not found\n");
+  return NULL;
 }
 
 int get_record_int_in_page(record r, schema_p s, int offset, int val) {
@@ -655,30 +647,21 @@ int get_record_int_in_page(record r, schema_p s, int offset, int val) {
     page_p pg = return_page(s->tbl, mid);
     int pos = page_current_pos(pg);
     int rec_val = page_get_int_at(pg, pos + offset);
-    
 
     if (val == rec_val) {
       page_set_current_pos(pg, pos);
       get_page_record(pg, r, s);
-      printf("Record found\n");
       return rec_val;
-      break;
     }
     else if (val < rec_val) {
       end = mid - 1;
-      printf("searching lesser half");
-    }
-    else if (val > rec_val && val >= s->tbl->num_records -1) {
-      beg = mid + 1;
-      printf("searching larger half");
     }
     else {
-      printf("Record not found\n");
-      return 0;
+      beg = mid + 1;
     }
   }
-  printf("exiting\n");
-  return 0;
+  printf("Record not found\n");
+  return -1;
 }
 
 static int int_equal(int x, int y) {
@@ -931,18 +914,11 @@ tbl_p binary_search(tbl_p t, char const* attr, char const* op, int val) {
   //finds the record with the value and appends it to the result schema
   if (get_record_int_in_page(rec, s, f->offset, val)) {
     put_record_info(ERROR, rec, s);
-    printf("getting record\n");
-    rec = get_record_in_page(rec, s, f->offset, val, 0, s->tbl->num_records - 1);
-    printf("%p", rec);
-    printf("appending record\n");
+    rec = get_record_in_page(rec, s, f->offset, val);
     append_record(rec, res_sch);
-    put_record_info(ERROR, rec, s);
-    printf("appended record\n");
   }
-  printf("releasing record\n");
-  //release_record(rec, s);
+  release_record(rec, s);
   table_display(res_sch->tbl);
-  printf("released record\n");
   return res_sch->tbl;
 }
   /*
