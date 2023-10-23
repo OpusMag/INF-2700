@@ -587,15 +587,11 @@ static void select_rows() {
       return;
     }
   }
-  CALLGRIND_TOGGLE_COLLECT;
-  CALLGRIND_START_INSTRUMENTATION;
   if (slct->where_attr[0] != '\0' && slct->where_op[0] != '\0') {
     where_tbl = binary_search(join_tbl ? join_tbl : slct->from_tbl,
                              slct->where_attr,
                              slct->where_op,
                              slct->where_val);
-  CALLGRIND_TOGGLE_COLLECT;
-  CALLGRIND_STOP_INSTRUMENTATION;
   put_pager_profiler_info(1);
   pager_profiler_reset();
 
@@ -606,18 +602,18 @@ static void select_rows() {
   }
 
   if (slct->attrs[0][0] == '*'){
-    printf("does it fail to display\n");
+    
     table_display(where_tbl ? where_tbl
                   : (join_tbl ? join_tbl : slct->from_tbl));
-    printf("not failing\n");
+    
   }
   else {
-    printf("not failling either\n");
+    
     res_tbl = table_project(where_tbl ? where_tbl : slct->from_tbl,
                             slct->num_attrs, slct->attrs);
-    printf("not failing 3\n");
+    
     table_display(res_tbl);
-    printf("yes it does\n");
+    
   }
 
   remove_table(join_tbl);
@@ -629,18 +625,18 @@ static void select_rows() {
 //mly004: Create test table for testing
 void test_tables(){
   //make tables for testing here copy what has already been done and augment
-  schema_p sch;
-  char test_table[20];
-  
+  char test_table[MAX_TOKEN_LEN];
+  schema_p sch = get_schema(test_table);
+
   strcpy(test_table, "test_table");
   put_msg(DEBUG, "create table name: \"%s\".\n", test_table);
 
+  
   sch = new_schema(test_table);
-  char attr_name[20] = "test_field1"; 
-  add_field(sch, new_int_field(attr_name));
+  char attr_str[MAX_LINE_WIDTH] = "test_field"; 
+  add_field(sch, new_int_field(attr_str));
 
   int int_val = 0;
-  int i = 0;
   for (int i = 0; i < 10000; i++) {
     record r = new_record(sch);
     assign_int_field(r[0], int_val);
