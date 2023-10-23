@@ -919,7 +919,7 @@ tbl_p binary_search(tbl_p t, char const* attr, char const* op, int val) {
   }
   release_record(rec, s);
   table_display(res_sch->tbl);
-  return res_sch->tbl;
+  return 0;
 }
   /*
   //mly004: Creating an array from table data
