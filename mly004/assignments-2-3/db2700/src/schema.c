@@ -3,7 +3,6 @@
  * UIT - The Arctic University of Norway                   *
  * Author: Weihai Yu                                       *
  ************************************************************/
-
 #include "schema.h"
 #include "pmsg.h"
 #include <string.h>
@@ -921,48 +920,6 @@ tbl_p binary_search(tbl_p t, char const* attr, char const* op, int val) {
   table_display(res_sch->tbl);
   return 0;
 }
-  /*
-  //mly004: Creating an array from table data
-  size_t num_records = t->num_records;
-  int* arr = (int*)malloc(num_records * sizeof(int));
-  if (arr == NULL) {
-    put_msg(ERROR, "failed to allocate memory for arr.\n");
-    release_record(rec, s);
-    return 0;
-  }
-
-  //mly004: Fill array with table data
-  i = 0;
-  set_tbl_position(t, TBL_BEG);
-  while (get_record(rec, s)) {
-    arr[i] = *(int *)rec[f->offset];
-    i++;
-  }
-
-  //mly004: Search array for value
-  int found = 0;
-  size_t left = 0;
-  size_t right = num_records - 1;
-  printf("Searching for %d\n", val);
-  while (left <= right) {
-    size_t mid = left + (right - left) / 2;
-    if (arr[mid] == val) {
-      found = 1;
-      printf("Found %d\n", val);
-      append_record(rec, res_sch);
-      break;
-    }
-    else if (arr[mid] < val) {
-      left = mid + 1;
-    }
-    else {
-      right = mid - 1;
-    }
-  }
-  //release_record(rec, s);
-  //free(arr);
-  return res_sch->tbl; //causes segfault at line 748 in function display_tbl_header
-  }*/
 
 tbl_p table_project(tbl_p t, int num_fields, char* fields[]) {
   schema_p s = t->sch;
@@ -983,16 +940,160 @@ tbl_p table_project(tbl_p t, int num_fields, char* fields[]) {
 
   return dest->tbl;
 }
-
+//mly004: natural join the two tables
 tbl_p table_natural_join(tbl_p left, tbl_p right) {
   if (!(left && right)) {
     put_msg(ERROR, "no table found!\n");
     return 0;
   }
+  schema_p left_sch = left->sch;
+  schema_p right_sch = right->sch;
 
-  tbl_p res = 0;
+  //Find the common field
+  field_desc_p int_field = NULL;
+  for (field_desc_p left_field = left_sch->first; left_field != NULL; left_field = left_field->next) {
+    for (field_desc_p right_field = right_sch->first; right_field != NULL; right_field = right_field->next) {
+      if (strcmp(left_field->name, right_field->name) == 0 && left_field->type == INT_TYPE && right_field->type == INT_TYPE) {
+        int_field = left_field;
+        break;
+      }
+    }
+    if (int_field != NULL) {
+      break;
+    }
+  }
 
-  /* TODO: assignment 3 */
+  if (int_field == NULL) {
+    put_msg(ERROR, "no int_field found!\n");
+    return 0;
+  }
+  
+  // Create the result schema
+  char *tmp_name = tmp_schema_name("join", left_sch->name);
+  schema_p res_sch = copy_schema(left_sch, tmp_name);
+  if (tmp_name == NULL) {
+    put_msg(ERROR, "failed to allocate memory for tmp_name.\n");
+    return 0;
+  }
+  free(tmp_name);
 
-  return res;
+  //Create records for left and right tables
+  record left_rec = new_record(left_sch);
+  if (left_rec == NULL) {
+    put_msg(ERROR, "failed to allocate memory for left_rec.\n");
+    return 0;
+  }
+  record right_rec = new_record(right_sch);
+  if (right_rec == NULL) {
+    put_msg(ERROR, "failed to allocate memory for right_rec.\n");
+    return 0;
+  }
+
+  // Add fields from right table to result schema
+  for (field_desc_p right_field = right_sch->first; right_field != NULL; right_field = right_field->next) {
+    if (strcmp(int_field->name, right_field->name) != 0) {
+      add_field(res_sch, right_field);
+    }
+  }
+  
+  //Set table positions
+  set_tbl_position(left, TBL_BEG);
+  set_tbl_position(right, TBL_BEG);
+  //For each record in a page in left table
+  while (get_record(left_rec, left_sch)) {
+    display_record(left_rec, left_sch);
+    //For each record in a page in the right table
+    while (get_record(right_rec, right_sch)) {
+      display_record(right_rec, right_sch);
+      //If the int_field is equal, append the record to the result table
+      if (get_field(left_sch, left_rec) == get_field(right_sch, right_rec)) {
+        record res_rec = new_record(res_sch);
+        if (res_rec == NULL) {
+          put_msg(ERROR, "failed to allocate memory for res_rec.\n");
+          return 0;
+        }
+        append_record(res_rec, res_sch);
+        release_record(res_rec, res_sch);
+        //table_display(res_sch->tbl);
+      }
+    }
+  }
+  return res_sch->tbl;
+
+  /*int left_block_num, right_block_num, left_current_block, right_current_block;
+  int left_num_blocks = file_num_blocks(left->sch->name);
+  int right_num_blocks = file_num_blocks(right->sch->name);
+  page_p left_page = left->curr_pg;
+  page_p right_page = right->curr_pg;
+
+  set_tbl_position(left, TBL_BEG);
+  set_tbl_position(right, TBL_BEG);
+  //For each record in a page in left table
+  for (left_block_num = 0; eop(left_page) == 0; get_next_page(left_page), left_block_num++) {
+    //For each record in a page in the right table
+    for (right_block_num = 0; eop(right_page) == 0; get_next_page(right_page), right_block_num++) {
+        //For each record in a block in left table
+      for (left_current_block = 0; left_current_block < left_num_blocks; left_current_block++) {
+        get_record(left_rec, left_sch);
+        //For each record in a block in right table
+        for (right_current_block = 0; right_current_block < right_num_blocks; right_current_block++) {
+          get_record(right_rec, right_sch);
+          if (get_field(left_sch, left_rec) == get_field(right_sch, right_rec)) {
+            record res_rec = new_record(res_sch);
+            if (res_rec == NULL) {
+              put_msg(ERROR, "failed to allocate memory for res_rec.\n");
+              return 0;
+            }
+            append_record(res_rec, res_sch);
+            release_record(res_rec, res_sch);
+            //table_display(res_sch->tbl);
+          }
+        }
+      }
+    }
+  }
+  
+  return res_sch->tbl;*/
 }
+
+
+/*tbl_p table_block_nested_loop_join(tbl_p left, tbl_p right, tbl_p res, schema_p left_sch, schema_p right_sch, schema_p res_sch, record left_rec, record right_rec, record res_rec) {
+  if (!(left && right)) {
+    put_msg(ERROR, "no table found!\n");
+    return 0;
+  }
+  int left_block_num, right_block_num, left_current_block, right_current_block;
+  int left_num_blocks = file_num_blocks(left->sch->name);
+  int right_num_blocks = file_num_blocks(right->sch->name);
+  page_p left_page = return_page(left->sch->name, left_block_num);
+  page_p right_page = return_page(right->sch->name, right_block_num);
+
+  set_tbl_position(left, TBL_BEG);
+  set_tbl_position(right, TBL_BEG);
+  //For each record in a page in left table
+  for (left_block_num = 0; eop(left_page) == 0; get_next_page(left_page), left_block_num++) {
+    printf("is the first for loop accessed?");
+    //For each record in a page in the right table
+    for (right_block_num = 0; eop(right_page) == 0; get_next_page(right_page), left_block_num++) {
+        //For each record in a block in left table
+        for (left_current_block = 0; left_current_block < left_block_num; get_next_page(left_page), left_current_block++) {
+          //For each record in a block in right table
+          for (right_current_block; right_current_block < right_block_num; get_next_page(left_page), left_current_block++) {
+            if (get_field(left_sch, left_rec) == get_field(right_sch, right_rec)) {
+              record res_rec = new_record(res_sch);
+              if (res_rec == NULL) {
+                put_msg(ERROR, "failed to allocate memory for res_rec.\n");
+                return 0;
+              }
+              printf("Do you get to the fill record point?");
+              append_record(res_rec, res_sch);
+              release_record(res_rec, res_sch);
+              //table_display(res_sch->tbl);
+          }
+        }
+      }
+    }
+  }
+  
+  return res_sch->tbl;
+}*/
