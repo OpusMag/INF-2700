@@ -33,6 +33,7 @@ static const char* const t_quit = "quit";
 static const char* const t_help = "help";
 static const char* const t_int = "int";
 static const char* const t_tables= "test";
+static const char* const t_tables2= "test2";
 
 static FILE *in_s; /* input stream, default to stdin */
 
@@ -242,6 +243,7 @@ static void show_help_info() {
   printf(" - drop table table_name (CAUTION: data will be deleted!!!)\n");
   printf(" - insert into table_name values ( value_1, value_2, ... )\n");
   printf(" - select attr1, attr2 from table_name where attr = int_val;\n\n");
+  printf(" - test (creates tables for testing)\n\n");
 }
 
 static void quit() {
@@ -582,13 +584,15 @@ static void select_rows() {
 
   if (slct->right_tbl) {
     join_tbl = table_natural_join(slct->from_tbl, slct->right_tbl);
+    put_pager_profiler_info(1);
+    pager_profiler_reset();
     if (!join_tbl) {
       release_select_desc(slct);
       return;
     }
   }
   if (slct->where_attr[0] != '\0' && slct->where_op[0] != '\0') {
-    where_tbl = binary_search(join_tbl ? join_tbl : slct->from_tbl,
+    where_tbl = table_search(join_tbl ? join_tbl : slct->from_tbl,
                              slct->where_attr,
                              slct->where_op,
                              slct->where_val);
@@ -633,15 +637,62 @@ void test_tables(){
 
   
   sch = new_schema(test_table);
-  char attr_str[MAX_LINE_WIDTH] = "test_field"; 
-  add_field(sch, new_int_field(attr_str));
+  char attr_int[MAX_LINE_WIDTH] = "int_field"; 
+  char attr_str[MAX_LINE_WIDTH] = "str_field"; 
+  int attr_len = 10;
+  add_field(sch, new_int_field(attr_int));
+  add_field(sch, new_str_field(attr_str, attr_len));
 
   int int_val = 0;
-  for (int i = 0; i < 10000; i++) {
+  for (int i = 0; i < 10; i++) {
     record r = new_record(sch);
     assign_int_field(r[0], int_val);
     int_val++;
+    char str_val[attr_len];
     if (r) {
+      
+      for (int j = 0; j < attr_len; j++) {
+        str_val[j] = 'a' + rand() % 26;
+      }
+      str_val[attr_len - 1] = '\0';
+      assign_str_field(r[1], str_val);
+
+      append_record(r, sch);
+      release_record(r, sch);
+    }
+  }
+}
+//mly004: Create another table for testing
+void test_tables2(){
+  //make tables for testing here copy what has already been done and augment
+  char test_table2[MAX_TOKEN_LEN];
+  schema_p sch = get_schema(test_table2);
+
+  strcpy(test_table2, "test_table2");
+  put_msg(DEBUG, "create table name: \"%s\".\n", test_table2);
+
+  
+  sch = new_schema(test_table2);
+  char attr_int[MAX_LINE_WIDTH] = "int_field"; 
+  char attr_str[MAX_LINE_WIDTH] = "str_field2"; 
+  int attr_len = 10;
+  add_field(sch, new_int_field(attr_int));
+  add_field(sch, new_str_field(attr_str, attr_len));
+
+  int int_val = 0;
+  for (int i = 0; i < 10; i++) {
+    record r = new_record(sch);
+    assign_int_field(r[0], int_val);
+    int_val++;
+
+    if (r) {
+      char str_val[attr_len];
+      for (int j = 0; j < attr_len; j++) {
+        str_val[j] = 'a' + rand() % 26;
+      }
+      str_val[attr_len - 1] = '\0';
+      assign_str_field(r[1], str_val);
+
       append_record(r, sch);
       release_record(r, sch);
     }
@@ -681,6 +732,8 @@ void interpret(int argc, char* argv[]) {
       { select_rows(); continue; }
     if (strcmp(token, t_tables) == 0)
       { test_tables(); continue; }
+    if (strcmp(token, t_tables2) == 0)
+      { test_tables2(); continue; }
     error_near(token);
   }
 }
