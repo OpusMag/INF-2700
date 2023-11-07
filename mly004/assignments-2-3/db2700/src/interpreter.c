@@ -644,7 +644,7 @@ void test_tables(){
   add_field(sch, new_str_field(attr_str, attr_len));
 
   int int_val = 0;
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 100000; i++) {
     record r = new_record(sch);
     assign_int_field(r[0], int_val);
     int_val++;
@@ -680,7 +680,7 @@ void test_tables2(){
   add_field(sch, new_str_field(attr_str, attr_len));
 
   int int_val = 0;
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 100000; i++) {
     record r = new_record(sch);
     assign_int_field(r[0], int_val);
     int_val++;
