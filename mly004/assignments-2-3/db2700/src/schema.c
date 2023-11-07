@@ -995,105 +995,110 @@ tbl_p table_natural_join(tbl_p left, tbl_p right) {
       add_field(res_sch, right_field);
     }
   }
-  
-  //Set table positions
+  int left_block_num, right_block_num, left_current_record, right_current_record;
+  int left_num_blocks = file_num_blocks(left->sch->name);
+  int right_num_blocks = file_num_blocks(right->sch->name);
+  int left_num_records = left->num_records;
+  int right_num_records = right->num_records;
+  page_p left_page = left->curr_pg;
+  page_p right_page = right->curr_pg;
+
+  int product_of_size = (BLOCK_SIZE - PAGE_HEADER_SIZE);
+  int left_rec_per_blck = product_of_size / left->sch->len;
+  int right_rec_per_blck = product_of_size / right->sch->len;
+
   set_tbl_position(left, TBL_BEG);
   set_tbl_position(right, TBL_BEG);
-  //For each record in a page in left table
-  while (get_record(left_rec, left_sch)) {
-    display_record(left_rec, left_sch);
-    //For each record in a page in the right table
-    while (get_record(right_rec, right_sch)) {
-      display_record(right_rec, right_sch);
-      //If the int_field is equal, append the record to the result table
-      if (get_field(left_sch, left_rec) == get_field(right_sch, right_rec)) {
-        record res_rec = new_record(res_sch);
-        if (res_rec == NULL) {
-          put_msg(ERROR, "failed to allocate memory for res_rec.\n");
-          return 0;
-        }
-        append_record(res_rec, res_sch);
-        release_record(res_rec, res_sch);
-        //table_display(res_sch->tbl);
-      }
-    }
-  }
-  return res_sch->tbl;
+  //For each block in left table it gets the page
+  for (left_block_num = 0; left_block_num < left_num_blocks; left_block_num++) {
+    left_page = get_page(left_sch->name, left_block_num);
+    //For each record in a block in left table
+    for (left_current_record = 0; left_current_record < left_rec_per_blck; left_current_record++) {
+        int left_pg_pos = (left_current_record * schema_len(left_sch)) + PAGE_HEADER_SIZE;
+        page_set_current_pos(left_page, left_pg_pos);
+        if (eop(left_page) == 1) {
+          break;
+          }
+        get_page_record(left_page, left_rec, left_sch);
+      //For each block in right table it gets the page
+      for (right_block_num = 0; right_block_num < right_num_blocks; right_block_num++) {
+        right_page = get_page(right_sch->name, right_block_num);
+        
+        //For each record in a block in right table
+        for (right_current_record = 0; right_current_record < right_rec_per_blck; right_current_record++) {
+          int right_pg_pos = (right_current_record * schema_len(right_sch)) + PAGE_HEADER_SIZE;
+          page_set_current_pos(right_page, right_pg_pos);
+          if (eop(right_page) == 1) {
+            break;
+          }
+          get_page_record(right_page, right_rec, right_sch);
+          //Hardcoding the first field to be an int field, and second field to be left str field and third field to be right str field
+          if (*(int *)left_rec[0] == *(int *)right_rec[0]) {
+            record res_rec = new_record(res_sch);
+            assign_int_field(res_rec[0], *(int *)left_rec[0]);
+            assign_str_field(res_rec[1], (char *)left_rec[1]);
+            assign_str_field(res_rec[2], (char *)right_rec[1]);
 
-  /*int left_block_num, right_block_num, left_current_block, right_current_block;
+            append_record(res_rec, res_sch);
+          }
+        }
+      }
+      unpin(right_page);
+    }
+    unpin(left_page);
+  }
+  
+  //return res_sch->tbl;
+
+
+  /*int left_block_num, right_block_num, left_current_record, right_current_record;
   int left_num_blocks = file_num_blocks(left->sch->name);
   int right_num_blocks = file_num_blocks(right->sch->name);
   page_p left_page = left->curr_pg;
   page_p right_page = right->curr_pg;
 
+  int product_of_size = (BLOCK_SIZE - PAGE_HEADER_SIZE);
+  int left_rec_per_blck = product_of_size / left->sch->len;
+  int right_rec_per_blck = product_of_size / right->sch->len;
+
   set_tbl_position(left, TBL_BEG);
   set_tbl_position(right, TBL_BEG);
-  //For each record in a page in left table
-  for (left_block_num = 0; eop(left_page) == 0; get_next_page(left_page), left_block_num++) {
-    //For each record in a page in the right table
-    for (right_block_num = 0; eop(right_page) == 0; get_next_page(right_page), right_block_num++) {
+  //For each block in left table
+  for (left_block_num = 0; left_block_num < left_num_blocks; left_block_num++) {
+    left_page = get_page(left_sch->name, left_block_num);
+    //For each block in right table
+    for (right_block_num = 0; right_block_num < right_num_blocks; right_block_num++) {
+      right_page = get_page(right_sch->name, right_block_num);
         //For each record in a block in left table
-      for (left_current_block = 0; left_current_block < left_num_blocks; left_current_block++) {
-        get_record(left_rec, left_sch);
+      for (left_current_record = 0; left_current_record < left_rec_per_blck; left_current_record++) {
+        int left_pg_pos = (left_current_record * schema_len(left_sch)) + PAGE_HEADER_SIZE;
+        page_set_current_pos(left_page, left_pg_pos);
+        if (eop(left_page) == 1) {
+          break;
+          }
+        get_page_record(left_page, left_rec, left_sch);
         //For each record in a block in right table
-        for (right_current_block = 0; right_current_block < right_num_blocks; right_current_block++) {
-          get_record(right_rec, right_sch);
-          if (get_field(left_sch, left_rec) == get_field(right_sch, right_rec)) {
+        for (right_current_record = 0; right_current_record < right_rec_per_blck; right_current_record++) {
+          int right_pg_pos = (right_current_record * schema_len(right_sch)) + PAGE_HEADER_SIZE;
+          page_set_current_pos(right_page, right_pg_pos);
+          if (eop(right_page) == 1) {
+            break;
+          }
+          get_page_record(right_page, right_rec, right_sch);
+          //Hardcoding the first field to be an int field, and second field to be left str field and third field to be right str field
+          if (*(int *)left_rec[0] == *(int *)right_rec[0]) {
             record res_rec = new_record(res_sch);
-            if (res_rec == NULL) {
-              put_msg(ERROR, "failed to allocate memory for res_rec.\n");
-              return 0;
-            }
+            assign_int_field(res_rec[0], *(int *)left_rec[0]);
+            assign_str_field(res_rec[1], (char *)left_rec[1]);
+            assign_str_field(res_rec[2], (char *)right_rec[1]);
+
             append_record(res_rec, res_sch);
-            release_record(res_rec, res_sch);
-            //table_display(res_sch->tbl);
           }
         }
       }
+      unpin(right_page);
     }
-  }
-  
-  return res_sch->tbl;*/
+    unpin(left_page);
+  }*/
+  //return res_sch->tbl;
 }
-
-
-/*tbl_p table_block_nested_loop_join(tbl_p left, tbl_p right, tbl_p res, schema_p left_sch, schema_p right_sch, schema_p res_sch, record left_rec, record right_rec, record res_rec) {
-  if (!(left && right)) {
-    put_msg(ERROR, "no table found!\n");
-    return 0;
-  }
-  int left_block_num, right_block_num, left_current_block, right_current_block;
-  int left_num_blocks = file_num_blocks(left->sch->name);
-  int right_num_blocks = file_num_blocks(right->sch->name);
-  page_p left_page = return_page(left->sch->name, left_block_num);
-  page_p right_page = return_page(right->sch->name, right_block_num);
-
-  set_tbl_position(left, TBL_BEG);
-  set_tbl_position(right, TBL_BEG);
-  //For each record in a page in left table
-  for (left_block_num = 0; eop(left_page) == 0; get_next_page(left_page), left_block_num++) {
-    printf("is the first for loop accessed?");
-    //For each record in a page in the right table
-    for (right_block_num = 0; eop(right_page) == 0; get_next_page(right_page), left_block_num++) {
-        //For each record in a block in left table
-        for (left_current_block = 0; left_current_block < left_block_num; get_next_page(left_page), left_current_block++) {
-          //For each record in a block in right table
-          for (right_current_block; right_current_block < right_block_num; get_next_page(left_page), left_current_block++) {
-            if (get_field(left_sch, left_rec) == get_field(right_sch, right_rec)) {
-              record res_rec = new_record(res_sch);
-              if (res_rec == NULL) {
-                put_msg(ERROR, "failed to allocate memory for res_rec.\n");
-                return 0;
-              }
-              printf("Do you get to the fill record point?");
-              append_record(res_rec, res_sch);
-              release_record(res_rec, res_sch);
-              //table_display(res_sch->tbl);
-          }
-        }
-      }
-    }
-  }
-  
-  return res_sch->tbl;
-}*/
